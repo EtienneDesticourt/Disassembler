@@ -33,6 +33,11 @@ class PortableExecutable(object):
 	def __init__(self):
 		self.sections = []
 
+	def getSection(self, name):
+		for section in self.sections:
+			if section.name == name:
+				return section
+
 	def checkFileCorrectness(self, bytes):
 		#CHECK DOES HEADER INTEGRITY
 		dosSignature = bytes[DOS_SIGNATURE_SLICE]
@@ -79,6 +84,8 @@ class PortableExecutable(object):
 	def parse(self, bytes):
 		self.checkFileCorrectness(bytes)
 
+		print("File shows no signs of corruption.")
+
 		#Parse all sections
 		self.sections = []
 		sectionOffset = self.getSectionOffset(bytes)
@@ -89,14 +96,9 @@ class PortableExecutable(object):
 
 		for i in range(numSections):
 			s = Section()
-			s.parse(sectionTable[i * SECTION_LENGTH:])
+			s.parse(sectionTable[i * SECTION_LENGTH:], bytes)
 			self.sections.append(s)
 
-		for i in self.sections:
-			print(i.name)
-
-
-		#stores section
 		#get .text section
 		#find x86 opcodes
 		#translate to assembly

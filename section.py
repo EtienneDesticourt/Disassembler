@@ -15,9 +15,9 @@ SECTION_LENGTH = NAME_LENGTH + VIRTUAL_SIZE_LENGTH + VIRTUAL_ADDRESS_LENGTH + SI
                + POINTER_TO_LINE_NUMBERS_LENGTH + NUMBER_OF_RELOCATIONS_LENGTH + NUMBER_OF_LINE_NUMBERS_LENGTH + CHARACTERISTICS_LENGTH
 
 class Section(object):
-	def parse(self, sectionTable):
+	def parse(self, sectionTable, bytes):
 		currentOffset = 0
-		self.name = sectionTable[:NAME_LENGTH]
+		self.name = sectionTable[:NAME_LENGTH].decode('utf8').rstrip('\0')
 		currentOffset += NAME_LENGTH
 
 		self.virtualSize = sectionTable[currentOffset: currentOffset + VIRTUAL_SIZE_LENGTH]
@@ -26,10 +26,12 @@ class Section(object):
 		self.virtualAddress = sectionTable[currentOffset: currentOffset + VIRTUAL_ADDRESS_LENGTH]
 		currentOffset += VIRTUAL_ADDRESS_LENGTH
 
-		self.sizeRawData = sectionTable[currentOffset: currentOffset + SIZE_OF_RAW_DATA_LENGTH]
+		sizeRawData = sectionTable[currentOffset: currentOffset + SIZE_OF_RAW_DATA_LENGTH]
+		self.sizeRawData = int.from_bytes(sizeRawData, byteorder='little')
 		currentOffset += SIZE_OF_RAW_DATA_LENGTH
 
-		self.pointerRawData = sectionTable[currentOffset: currentOffset + POINTER_TO_RAW_DATA_LENGTH]
+		pointerRawData = sectionTable[currentOffset: currentOffset + POINTER_TO_RAW_DATA_LENGTH]
+		self.pointerRawData = int.from_bytes(pointerRawData, byteorder='little')
 		currentOffset += POINTER_TO_RAW_DATA_LENGTH
 
 		self.pointerReloc = sectionTable[currentOffset: currentOffset + POINTER_TO_RELOCATIONS_LENGTH]
@@ -45,4 +47,6 @@ class Section(object):
 		currentOffset += NUMBER_OF_LINE_NUMBERS_LENGTH
 
 		self.charac = sectionTable[currentOffset: currentOffset + CHARACTERISTICS_LENGTH]
+
+		self.rawData = bytes[self.pointerRawData:self.pointerRawData + self.sizeRawData]
 
