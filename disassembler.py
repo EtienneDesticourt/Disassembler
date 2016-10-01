@@ -1,9 +1,7 @@
 from disassembler_exception import DisassemblerException
 import binascii, struct
-
-#DATA
-SHORT = 2
-LONG = 4
+from type_length import SHORT, LONG
+from section import Section, SECTION_LENGTH
 
 #DOS HEADER
 DOS_SIGNATURE       = b'MZ' #Mike Zbikowski
@@ -23,23 +21,24 @@ SIZE_OPT_HEADER_LENGTH  = SHORT
 CHARAC_LENGTH           = SHORT
 
 #PE OPT HEADER
+PE_OPT_OFFSET           = PE_SIGNATURE_LENGTH + MACHINE_LENGTH + NUM_SECTIONS_LENGTH + TIMEDATE_LENGTH + SIZE_OPT_HEADER_LENGTH + CHARAC_LENGTH
+DEPR_PE_OPT_OFFSET      = PE_OPT_OFFSET + SYMB_TABLE_LENGTH + NUM_SYMB_TABLE_LENGTH
 PE_OPT_SIGNATURE        = b'\x0B\x01'
 PE_OPT_SIGNATURE_LENGTH = SHORT
 LINKER_VERSION_LENGTH   = LONG #major + minor
 SIZE_CODE_LENGTH        = LONG
 
 
-class PEExecutable(object):
-	def __init__(self):
-		pass
 
-	def parse(self, bytes):
-		print(len(bytes))
+class PortableExecutable(object):
+	def __init__(self):
+		self.sections = []
+
+	def checkFileCorrectness(self, bytes):
 		#CHECK DOES HEADER INTEGRITY
 		dosSignature = bytes[DOS_SIGNATURE_SLICE]
 		if dosSignature != DOS_SIGNATURE:
 			raise DisassemblerException("Corrupted executable file. Wrong DOS signature.")
-
 
 		#CHECK PE HEADER INTEGRITY
 		peOffset = bytes[PE_OFFSET_LOCATION]
@@ -47,43 +46,55 @@ class PEExecutable(object):
 		if peSignature != PE_SIGNATURE:
 			raise DisassemblerException("Corrupted executable file. Wrong PE signature.")
 
+		#CHECK CORRECT MACHINE COMPILATION
 		currentOffset = peOffset + PE_SIGNATURE_LENGTH
 		machine = bytes[currentOffset:currentOffset + MACHINE_LENGTH]
 		if machine != INTEL_MACHINE:
 			raise DisassemblerException("Wrong compilation. Only INTEL machine supported.")
 
-		currentOffset += MACHINE_LENGTH
-		numSections = bytes[currentOffset:currentOffset + NUM_SECTIONS_LENGTH]
+	def getNumSections(self, bytes):
+		peOffset = bytes[PE_OFFSET_LOCATION]
+		numSectionOffset = peOffset + PE_SIGNATURE_LENGTH + MACHINE_LENGTH
+		numSections = bytes[numSectionOffset:numSectionOffset + NUM_SECTIONS_LENGTH]
+		return int.from_bytes(numSections, byteorder='little')
 
-		currentOffset += NUM_SECTIONS_LENGTH + TIMEDATE_LENGTH
-		#We save it to get the size of the optional header later
-		#which should be here if no deprecated values are present
-		timedateEndOffset = currentOffset
-
+	def getSectionOffset(self, bytes):
 		#GET START OF PE OPT HEADER
-		#Check if deprecated values present
-		currentOffset += SIZE_OPT_HEADER_LENGTH + CHARAC_LENGTH
-		peOptSignature = bytes[currentOffset:currentOffset + PE_OPT_SIGNATURE_LENGTH]
-		if peOptSignature != PE_OPT_SIGNATURE:
-			#Deprecated values (pointer to symbol table and num of symb. table) might be present, we must look further for signature
-			currentOffset += SYMB_TABLE_LENGTH + NUM_SYMB_TABLE_LENGTH
-			peOptSignature = bytes[currentOffset:currentOffset + PE_OPT_SIGNATURE_LENGTH]
-			if peOptSignature != PE_OPT_SIGNATURE:
+		peOffset = bytes[PE_OFFSET_LOCATION]
+
+		#Look for optional pe header offset, and check whether it's at deprecated location
+		peOptOffset = peOffset + PE_OPT_OFFSET
+		signature = bytes[peOptOffset: peOptOffset + PE_OPT_SIGNATURE_LENGTH]
+		if signature != PE_OPT_SIGNATURE:
+			peOptOffset = peOffset + DEPR_PE_OPT_OFFSET
+			signature = bytes[peOptOffset: peOptOffset + PE_OPT_SIGNATURE_LENGTH]
+			if signature != PE_OPT_SIGNATURE:
 				raise DisassemblerException("Corrupted executable file. Wrong PE opt signature.")
-			sizeOptHeaderOffset = timedateEndOffset + SYMB_TABLE_LENGTH + NUM_SYMB_TABLE_LENGTH
-			sizeOptHeader = bytes[sizeOptHeaderOffset:sizeOptHeaderOffset + SIZE_OPT_HEADER_LENGTH]
-		else:
-			sizeOptHeader = bytes[timeDateEndOffset:timeDateEndOffset + SIZE_OPT_HEADER_LENGTH]
-		sizeOptHeader = int.from_bytes(sizeOptHeader, byteorder='little')
 
+		#Find the size of the optional header, stored in the PE header
+		sizeOptHeaderOffset = peOptOffset - CHARAC_LENGTH - SIZE_OPT_HEADER_LENGTH
+		sizeOptHeader = bytes[sizeOptHeaderOffset: sizeOptHeaderOffset + SIZE_OPT_HEADER_LENGTH]
 
-		#GET START OF SECTIONS
-		name = bytes[currentOffset + sizeOptHeader:currentOffset + sizeOptHeader+16]
-		print(name)
+		return peOptOffset + int.from_bytes(sizeOptHeader, byteorder='little')
 
+	def parse(self, bytes):
+		self.checkFileCorrectness(bytes)
 
+		#Parse all sections
+		self.sections = []
+		sectionOffset = self.getSectionOffset(bytes)
+		sectionTable = bytes[sectionOffset:]
+		numSections = self.getNumSections(bytes)
 
+		print("Found " + str(numSections) + " sections.\n")
 
+		for i in range(numSections):
+			s = Section()
+			s.parse(sectionTable[i * SECTION_LENGTH:])
+			self.sections.append(s)
+
+		for i in self.sections:
+			print(i.name)
 
 
 		#stores section
@@ -97,5 +108,5 @@ if __name__ == '__main__':
 	with open("main.exe", "rb") as f:
 	    data = f.read()
 
-	parser = PEExecutable()
+	parser = PortableExecutable()
 	parser.parse(data)

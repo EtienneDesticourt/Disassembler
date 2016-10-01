@@ -1,0 +1,4 @@
+
+SHORT = 2
+LONG = 4
+DOUBLE = 8
