@@ -1,0 +1,26 @@
+GDB Notes:
+
+-tui mode not available on windows
+
+
+disassemble command to see disassembly of next 12 instructions from current frame.
+disassemble /m interlace with c code
+b or break to break. ex: break main / b main
+r or run to run
+p or print to show local variables
+
+Examine memory:
+x(eXamine) /nfu address
+n: number of units
+f: format (s for string)
+u: type of units (b bytes(1), h halfwords(2), w words(4), g giants(8))
+
+set disassembly-flavor intel
+
+.gdbinit file executed at startup, add instructions there to change default behaviour (ie. set intel flavor at startup)
+
+INSTRUCTIONS:
+
+and    $0xfffffff0,%esp
+
+This code makes sure that the stack is aligned to 16 bytes. After this operation esp will be less than or equal to what it was before this operation, so the stack may grow, which protects anything that might already be on the stack. This is sometimes done in main just in case the function is called with an unaligned stack, which can cause things to be really slow (16 byte is a cache line width on x86, I think, though 4 byte alignment is what is really important here). If main has a unaligned stack the rest of the program will too.

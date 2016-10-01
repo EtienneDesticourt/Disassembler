@@ -1,0 +1,6 @@
+__pycache__
+*.exe
+*.o
+*.id*
+*.til
+*.nam
