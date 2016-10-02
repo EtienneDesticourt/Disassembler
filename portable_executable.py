@@ -1,105 +1,85 @@
+import struct
 from disassembler_exception import PEParsingException
-from type_length import SHORT, LONG
 from section import Section, SECTION_LENGTH
 
 #DOS HEADER
 DOS_SIGNATURE       = b'MZ' #Mike Zbikowski
 DOS_SIGNATURE_SLICE = slice(0,2)
 PE_OFFSET_LOCATION  = 0x3C
+SIZE_DOS_HEADER     = 0x40
 
-#PE HEADER
-PE_SIGNATURE            = b'PE\0\0'
-PE_SIGNATURE_LENGTH     = LONG
-INTEL_MACHINE     	    = b'\x4C\x01'
-MACHINE_LENGTH          = SHORT
-NUM_SECTIONS_LENGTH     = SHORT
-TIMEDATE_LENGTH         = LONG
-SYMB_TABLE_LENGTH       = LONG #deprecated
-NUM_SYMB_TABLE_LENGTH   = LONG #deprecated
-SIZE_OPT_HEADER_LENGTH  = SHORT
-CHARAC_LENGTH           = SHORT
+#COFF HEADER
+PE_SIGNATURE      = b'PE\0\0'
+INTEL_MACHINE     = b'\x4C\x01'
+PE_SIGN_FORMAT    = "4s"
+MACHINE_FORMAT    = "2s"
+NUM_SEC_FORMAT    = "h"
+TIMEDATE_FORMAT   = "l"
+POINT_SYMB_FORMAT = "l"
+NUM_SYMB_FORMAT   = "l"
+SIZE_OPT_FORMAT   = "h"
+CHARAC_FORMAT     = "h"
+SIZE_PE_HEADER    = 0x18
 
 #PE OPT HEADER
-PE_OPT_OFFSET           = PE_SIGNATURE_LENGTH + MACHINE_LENGTH + NUM_SECTIONS_LENGTH + TIMEDATE_LENGTH + SIZE_OPT_HEADER_LENGTH + CHARAC_LENGTH
-DEPR_PE_OPT_OFFSET      = PE_OPT_OFFSET + SYMB_TABLE_LENGTH + NUM_SYMB_TABLE_LENGTH
-PE_OPT_SIGNATURE        = b'\x0B\x01'
-PE_OPT_SIGNATURE_LENGTH = SHORT
-LINKER_VERSION_LENGTH   = LONG #major + minor
-SIZE_CODE_LENGTH        = LONG
+OPT_MAGIC        = b'\x0B\x01'
+OPT_MAGIC_FORMAT = "2s"
+LINKER_FORMAT    = "l"
+SIZE_CODE_FORMAT = "l"
+SIZE_PARSED_OPT_HEADER = 0x0C #We only care about the 12 first bytes
 
+FORMATS = [PE_SIGN_FORMAT, MACHINE_FORMAT, NUM_SEC_FORMAT, TIMEDATE_FORMAT, POINT_SYMB_FORMAT, NUM_SYMB_FORMAT,
+           SIZE_OPT_FORMAT, CHARAC_FORMAT, OPT_MAGIC_FORMAT, LINKER_FORMAT, SIZE_CODE_FORMAT]
 
+PE_FORMAT = ''.join(FORMATS)
 
 class PortableExecutable(object):
-	def __init__(self):
-		self.sections = []
+    def __init__(self, filePath):
+        self.sections = {}
+        with open(filePath, 'rb') as f:
+            bytes = f.read()
+        self.parse(bytes)
 
-	def getSection(self, name):
-		for section in self.sections:
-			if section.name == name:
-				return section
+    def calcSectionOffset(self):
+        return SIZE_PE_HEADER + self.coffOffset + self.sizeOptHeader
 
-	def checkFileCorrectness(self, bytes):
-		#CHECK DOES HEADER INTEGRITY
-		dosSignature = bytes[DOS_SIGNATURE_SLICE]
-		if dosSignature != DOS_SIGNATURE:
-			raise PEParsingException("Corrupted executable file. Wrong DOS signature.")
+    def parse(self, bytes):
+        if len(bytes) < SIZE_DOS_HEADER + SIZE_PE_HEADER + SIZE_PARSED_OPT_HEADER:
+            raise PEParsingException("Byte stream too short. PE file either truncated or corrupted.")
 
-		#CHECK PE HEADER INTEGRITY
-		peOffset = bytes[PE_OFFSET_LOCATION]
-		peSignature = bytes[peOffset:peOffset + PE_SIGNATURE_LENGTH]
-		if peSignature != PE_SIGNATURE:
-			raise PEParsingException("Corrupted executable file. Wrong PE signature.")
+        if bytes[DOS_SIGNATURE_SLICE] != DOS_SIGNATURE:
+            raise PEParsingException("Corrupted executable file. Wrong DOS signature.")
 
-		#CHECK CORRECT MACHINE COMPILATION
-		currentOffset = peOffset + PE_SIGNATURE_LENGTH
-		machine = bytes[currentOffset:currentOffset + MACHINE_LENGTH]
-		if machine != INTEL_MACHINE:
-			raise PEParsingException("Wrong compilation. Only INTEL machine supported.")
+        self.coffOffset = bytes[PE_OFFSET_LOCATION]
+        fields = struct.unpack_from(PE_FORMAT, bytes, self.coffOffset)
 
-	def getNumSections(self, bytes):
-		peOffset = bytes[PE_OFFSET_LOCATION]
-		numSectionOffset = peOffset + PE_SIGNATURE_LENGTH + MACHINE_LENGTH
-		numSections = bytes[numSectionOffset:numSectionOffset + NUM_SECTIONS_LENGTH]
-		return int.from_bytes(numSections, byteorder='little')
+        self.signature      = fields[0]
+        self.machine        = fields[1]
+        self.numSections    = fields[2]
+        self.timedateStamp  = fields[3]
+        self.pointSymbols   = fields[4]
+        self.numSymbols     = fields[5]
+        self.sizeOptHeader  = fields[6]
+        self.characs        = fields[7]
+        self.optMagic       = fields[8]
+        self.linker         = fields[9]
+        self.sizeCode       = fields[10]
 
-	def getSectionOffset(self, bytes):
-		#GET START OF PE OPT HEADER
-		peOffset = bytes[PE_OFFSET_LOCATION]
+        if self.signature != PE_SIGNATURE:
+            raise PEParsingException("Corrupted executable file. Wrong PE signature.")
 
-		#Look for optional pe header offset, and check whether it's at deprecated location
-		peOptOffset = peOffset + PE_OPT_OFFSET
-		signature = bytes[peOptOffset: peOptOffset + PE_OPT_SIGNATURE_LENGTH]
-		if signature != PE_OPT_SIGNATURE:
-			peOptOffset = peOffset + DEPR_PE_OPT_OFFSET
-			signature = bytes[peOptOffset: peOptOffset + PE_OPT_SIGNATURE_LENGTH]
-			if signature != PE_OPT_SIGNATURE:
-				raise PEParsingException("Corrupted executable file. Wrong PE opt signature.")
+        if self.optMagic != OPT_MAGIC:
+            raise PEParsingException("Corrupted executable file. Wrong opt header magic.")
 
-		#Find the size of the optional header, stored in the PE header
-		sizeOptHeaderOffset = peOptOffset - CHARAC_LENGTH - SIZE_OPT_HEADER_LENGTH
-		sizeOptHeader = bytes[sizeOptHeaderOffset: sizeOptHeaderOffset + SIZE_OPT_HEADER_LENGTH]
+        sectionOffset = self.calcSectionOffset()
+        sectionTable = bytes[sectionOffset:]
+        for i in range(self.numSections):
+            offset = i * SECTION_LENGTH
+            sectionHeader = sectionTable[offset:offset + SECTION_LENGTH]
+            s = Section(sectionHeader, bytes)
+            self.sections[s.name] = s
 
-		return peOptOffset + int.from_bytes(sizeOptHeader, byteorder='little')
-
-	def parse(self, bytes):
-		self.checkFileCorrectness(bytes)
-
-		print("File shows no signs of corruption.")
-
-		#Parse all sections
-		self.sections = []
-		sectionOffset = self.getSectionOffset(bytes)
-		sectionTable = bytes[sectionOffset:]
-		numSections = self.getNumSections(bytes)
-
-		print("Found " + str(numSections) + " sections.\n")
-
-		for i in range(numSections):
-			s = Section()
-			s.parse(sectionTable[i * SECTION_LENGTH:], bytes)
-			self.sections.append(s)
-
-		#get .text section
-		#find x86 opcodes
-		#translate to assembly
+        #get .text section
+        #find x86 opcodes
+        #translate to assembly
 

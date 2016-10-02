@@ -24,3 +24,21 @@ INSTRUCTIONS:
 and    $0xfffffff0,%esp
 
 This code makes sure that the stack is aligned to 16 bytes. After this operation esp will be less than or equal to what it was before this operation, so the stack may grow, which protects anything that might already be on the stack. This is sometimes done in main just in case the function is called with an unaligned stack, which can cause things to be really slow (16 byte is a cache line width on x86, I think, though 4 byte alignment is what is really important here). If main has a unaligned stack the rest of the program will too.
+
+
+
+Process:
+
+3 main parts:
+PE header
+PE Opt header: contains a bunch of diferent info
+and Sections
+
+Headers Ided through magic numbers
+
+Address of entry point no good to find raw code because RVA (virtual address)
+
+Size of code same as size of raw data in .text section
+
+To find section table find start of pe opt header, find size of opt header in pe header, add the two: you get section offset
+Each section header 5 * double length as far as I'm aware.

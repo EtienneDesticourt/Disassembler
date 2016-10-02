@@ -1,16 +1,25 @@
 from portable_executable import PortableExecutable
 
+class Disassembler(object):
+
+    def disassembleByteStream(self, byteStream):
+        pass
+
+    def disassemble(self, codeSection):
+        pass
+
+
+
+
+
+
 if __name__ == '__main__':
-	with open("main.exe", "rb") as f:
-	    data = f.read()
+    parser = PortableExecutable("main.exe")
 
-	parser = PortableExecutable()
-	parser.parse(data)
+    section = parser.sections[".text"]
 
-	section = parser.getSection(".text")
-
-	if section:
-		print("Name:", section.name)
-		print("Data size:", section.sizeRawData)
-		print("Data offset:", section.pointerRawData)
+    if section:
+        print("Name:", section.name)
+        print("Data size:", section.sizeRawData)
+        print("Data offset:", section.pointerRawData)
 

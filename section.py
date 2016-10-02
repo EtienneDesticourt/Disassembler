@@ -1,52 +1,38 @@
-from type_length import SHORT, LONG, DOUBLE
+import struct
 
-NAME_LENGTH 					= DOUBLE
-VIRTUAL_SIZE_LENGTH 			= LONG
-VIRTUAL_ADDRESS_LENGTH 			= LONG
-SIZE_OF_RAW_DATA_LENGTH 		= LONG
-POINTER_TO_RAW_DATA_LENGTH 		= LONG
-POINTER_TO_RELOCATIONS_LENGTH 	= LONG
-POINTER_TO_LINE_NUMBERS_LENGTH	= LONG
-NUMBER_OF_RELOCATIONS_LENGTH 	= SHORT
-NUMBER_OF_LINE_NUMBERS_LENGTH 	= SHORT
-CHARACTERISTICS_LENGTH 			= LONG
+#SECTION TABLE
+NAME_FORMAT                     = "8s"
+VIRTUAL_SIZE_FORMAT             = "l"
+VIRTUAL_ADDRESS_FORMAT          = "l"
+SIZE_OF_RAW_DATA_FORMAT         = "l"
+POINTER_TO_RAW_DATA_FORMAT      = "l"
+POINTER_TO_RELOCATIONS_FORMAT   = "l"
+POINTER_TO_LINE_NUMBERS_FORMAT  = "l"
+NUMBER_OF_RELOCATIONS_FORMAT    = "h"
+NUMBER_OF_LINE_NUMBERS_FORMAT   = "h"
+CHARACTERISTICS_FORMAT          = "l"
+SECTION_LENGTH                  = 0x28
 
-SECTION_LENGTH = NAME_LENGTH + VIRTUAL_SIZE_LENGTH + VIRTUAL_ADDRESS_LENGTH + SIZE_OF_RAW_DATA_LENGTH + POINTER_TO_RELOCATIONS_LENGTH + POINTER_TO_RAW_DATA_LENGTH \
-               + POINTER_TO_LINE_NUMBERS_LENGTH + NUMBER_OF_RELOCATIONS_LENGTH + NUMBER_OF_LINE_NUMBERS_LENGTH + CHARACTERISTICS_LENGTH
+FORMATS = [NAME_FORMAT, VIRTUAL_SIZE_FORMAT, VIRTUAL_ADDRESS_FORMAT, SIZE_OF_RAW_DATA_FORMAT, POINTER_TO_RELOCATIONS_FORMAT, POINTER_TO_RAW_DATA_FORMAT,
+           POINTER_TO_LINE_NUMBERS_FORMAT, NUMBER_OF_RELOCATIONS_FORMAT, NUMBER_OF_LINE_NUMBERS_FORMAT, CHARACTERISTICS_FORMAT]
+
+SECTION_FORMAT = ''.join(FORMATS)
 
 class Section(object):
-	def parse(self, sectionTable, bytes):
-		currentOffset = 0
-		self.name = sectionTable[:NAME_LENGTH].decode('utf8').rstrip('\0')
-		currentOffset += NAME_LENGTH
+    def __init__(self, sectionBytes, bytes):
+        self.parse(sectionBytes, bytes)
 
-		self.virtualSize = sectionTable[currentOffset: currentOffset + VIRTUAL_SIZE_LENGTH]
-		currentOffset += VIRTUAL_SIZE_LENGTH
-
-		self.virtualAddress = sectionTable[currentOffset: currentOffset + VIRTUAL_ADDRESS_LENGTH]
-		currentOffset += VIRTUAL_ADDRESS_LENGTH
-
-		sizeRawData = sectionTable[currentOffset: currentOffset + SIZE_OF_RAW_DATA_LENGTH]
-		self.sizeRawData = int.from_bytes(sizeRawData, byteorder='little')
-		currentOffset += SIZE_OF_RAW_DATA_LENGTH
-
-		pointerRawData = sectionTable[currentOffset: currentOffset + POINTER_TO_RAW_DATA_LENGTH]
-		self.pointerRawData = int.from_bytes(pointerRawData, byteorder='little')
-		currentOffset += POINTER_TO_RAW_DATA_LENGTH
-
-		self.pointerReloc = sectionTable[currentOffset: currentOffset + POINTER_TO_RELOCATIONS_LENGTH]
-		currentOffset += POINTER_TO_RELOCATIONS_LENGTH
-
-		self.pointerLineNum = sectionTable[currentOffset: currentOffset + POINTER_TO_LINE_NUMBERS_LENGTH]
-		currentOffset += POINTER_TO_LINE_NUMBERS_LENGTH
-
-		self.numReloc = sectionTable[currentOffset: currentOffset + NUMBER_OF_RELOCATIONS_LENGTH]
-		currentOffset += NUMBER_OF_RELOCATIONS_LENGTH
-
-		self.numLineNum = sectionTable[currentOffset: currentOffset + NUMBER_OF_LINE_NUMBERS_LENGTH]
-		currentOffset += NUMBER_OF_LINE_NUMBERS_LENGTH
-
-		self.charac = sectionTable[currentOffset: currentOffset + CHARACTERISTICS_LENGTH]
-
-		self.rawData = bytes[self.pointerRawData:self.pointerRawData + self.sizeRawData]
-
+    def parse(self, sectionBytes, bytes):
+        fields = struct.unpack(SECTION_FORMAT, sectionBytes)
+        print(fields[0])
+        self.name           = fields[0].decode('utf8').rstrip('\0')
+        self.virtualSize    = fields[1]
+        self.virtualAddress = fields[2]
+        self.sizeRawData    = fields[3]
+        self.pointerRawData = fields[4]
+        self.pointerReloc   = fields[5]
+        self.pointerLineNum = fields[6]
+        self.numReloc       = fields[7]
+        self.numLineNum     = fields[8]
+        self.charac         = fields[9]
+        self.rawData        = bytes[self.pointerRawData:self.pointerRawData + self.sizeRawData]
