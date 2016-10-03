@@ -1,4 +1,5 @@
 import struct
+from datetime import datetime
 from disassembler_exception import PEParsingException
 from section import Section, SECTION_LENGTH
 
@@ -31,7 +32,7 @@ SIZE_PARSED_OPT_HEADER = 0x0C #We only care about the 12 first bytes
 FORMATS = [PE_SIGN_FORMAT, MACHINE_FORMAT, NUM_SEC_FORMAT, TIMEDATE_FORMAT, POINT_SYMB_FORMAT, NUM_SYMB_FORMAT,
            SIZE_OPT_FORMAT, CHARAC_FORMAT, OPT_MAGIC_FORMAT, LINKER_FORMAT, SIZE_CODE_FORMAT]
 
-PE_FORMAT = ''.join(FORMATS)
+PE_FORMAT = '<' + ''.join(FORMATS)
 
 class PortableExecutable(object):
     def __init__(self, filePath):
@@ -69,7 +70,7 @@ class PortableExecutable(object):
             raise PEParsingException("Corrupted executable file. Wrong PE signature.")
 
         if self.optMagic != OPT_MAGIC:
-            raise PEParsingException("Corrupted executable file. Wrong opt header magic.")
+            raise PEParsingException("Corrupted executable file. Wrong opt header magic. ")
 
         sectionOffset = self.calcSectionOffset()
         sectionTable = bytes[sectionOffset:]
