@@ -25,14 +25,21 @@ SIZE_PE_HEADER    = 0x18
 #PE OPT HEADER
 OPT_MAGIC        = b'\x0B\x01'
 OPT_MAGIC_FORMAT = "2s"
-LINKER_FORMAT    = "l"
+LINKER_FORMAT    = "bb"
 SIZE_CODE_FORMAT = "l"
+SIZE_INIT_FORMAT = "l"
+SIZE_UNIN_FORMAT = "l"
+ADDRESS_ENTRY_FORMAT = "l"
 SIZE_PARSED_OPT_HEADER = 0x0C #We only care about the 12 first bytes
 
 FORMATS = [PE_SIGN_FORMAT, MACHINE_FORMAT, NUM_SEC_FORMAT, TIMEDATE_FORMAT, POINT_SYMB_FORMAT, NUM_SYMB_FORMAT,
-           SIZE_OPT_FORMAT, CHARAC_FORMAT, OPT_MAGIC_FORMAT, LINKER_FORMAT, SIZE_CODE_FORMAT]
+           SIZE_OPT_FORMAT, CHARAC_FORMAT, OPT_MAGIC_FORMAT, LINKER_FORMAT, SIZE_CODE_FORMAT, SIZE_INIT_FORMAT,
+           SIZE_UNIN_FORMAT, ADDRESS_ENTRY_FORMAT]
 
 PE_FORMAT = '<' + ''.join(FORMATS)
+
+#SECTIONS
+TEXT_SECTION_NAME = ".text"
 
 class PortableExecutable(object):
     def __init__(self, filePath):
@@ -40,6 +47,17 @@ class PortableExecutable(object):
         with open(filePath, 'rb') as f:
             bytes = f.read()
         self.parse(bytes)
+
+    def calcRawEntryPoint(self):
+        text = self.sections[TEXT_SECTION_NAME]
+        va = text.virtualAddress
+        pointRaw = text.pointerRawData
+        print("TEXT VA:", va)
+        print("RAW POINT:", pointRaw)
+        print("ENTRY VA:", self.addressEntry)
+        print("DELTA:", self.addressEntry - va)
+        print("RAW EP:", pointRaw + self.addressEntry - va)
+        return pointRaw + (self.addressEntry - va)
 
     def calcSectionOffset(self):
         return SIZE_PE_HEADER + self.coffOffset + self.sizeOptHeader
@@ -54,6 +72,7 @@ class PortableExecutable(object):
         self.coffOffset = bytes[PE_OFFSET_LOCATION]
         fields = struct.unpack_from(PE_FORMAT, bytes, self.coffOffset)
 
+        #COFF HEADER
         self.signature      = fields[0]
         self.machine        = fields[1]
         self.numSections    = fields[2]
@@ -62,9 +81,14 @@ class PortableExecutable(object):
         self.numSymbols     = fields[5]
         self.sizeOptHeader  = fields[6]
         self.characs        = fields[7]
+        #OPT HEADER
         self.optMagic       = fields[8]
-        self.linker         = fields[9]
-        self.sizeCode       = fields[10]
+        self.majLinker      = fields[9]
+        self.minLinker      = fields[10]
+        self.sizeCode       = fields[11]
+        self.sizeInitData   = fields[12]
+        self.sizeUninitData = fields[13]
+        self.addressEntry   = fields[14]
 
         if self.signature != PE_SIGNATURE:
             raise PEParsingException("Corrupted executable file. Wrong PE signature.")
@@ -79,6 +103,9 @@ class PortableExecutable(object):
             sectionHeader = sectionTable[offset:offset + SECTION_LENGTH]
             s = Section(sectionHeader, bytes)
             self.sections[s.name] = s
+
+        self.rawEntryPoint = self.calcRawEntryPoint()
+
 
         #get .text section
         #find x86 opcodes
