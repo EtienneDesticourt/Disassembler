@@ -26,18 +26,18 @@ class Disassembler(object):
         while k < len(bytes):
             firstByteIndex = k
 
-            b = bytes[k]
-            k += 1
+            #b = bytes[k]
+            #k += 1
 
-            if opcode not in OPCODES:
-                break
+            #if b not in OPCODES:
+            #    break
                 #raise DisassemblerException("Unknown opcode: " + hex(opcode))
 
             #Handle prefixes modifiers or required
             prefixGroup = 1
             while prefixGroup:
                 b = bytes[k]
-                mnemonics, numArgs, prefixGroup = OPCODES[opcode]
+                mnemonics, numArgs, prefixGroup = OPCODES[b]
                 k += 1
 
             #Handle escape sequence if any
@@ -60,7 +60,7 @@ class Disassembler(object):
             if numArgs > 0:
                 b = bytes[k]
                 k += 1
-                modRM = self.getBitArray(byte)
+                modRM = self.getBitArray(b)#[::-1]
                 mod = modRM[:2]
                 reg1 = modRM[2:5]
                 reg2 = modRM[5:]
@@ -73,23 +73,15 @@ class Disassembler(object):
                 #Handle displacement
                 if mod == [0,1]:
                     dispSize = 8 / 8
+                    k += dispSize
                 if mod == [1,0]:
                     dispSize = 32 / 8
+                    k += dispSize
 
-
-
-
-
-
-
-
-
-
-
-
-            instruction = Instruction(bytes[firstByteIndex:k + numArgs], firstByteIndex)
+            instruction = Instruction(bytes[firstByteIndex:k], firstByteIndex)
+            print(instruction.bytes)
             instructions.append(instruction)
-            k += numArgs
+            #k += numArgs
 
         return instructions
 
