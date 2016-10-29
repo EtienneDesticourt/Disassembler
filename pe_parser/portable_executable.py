@@ -52,11 +52,6 @@ class PortableExecutable(object):
         text = self.sections[TEXT_SECTION_NAME]
         va = text.virtualAddress
         pointRaw = text.pointerRawData
-        print("TEXT VA:", va)
-        print("RAW POINT:", pointRaw)
-        print("ENTRY VA:", self.addressEntry)
-        print("DELTA:", self.addressEntry - va)
-        print("RAW EP:", pointRaw + self.addressEntry - va)
         return pointRaw + (self.addressEntry - va)
 
     def calcSectionOffset(self):

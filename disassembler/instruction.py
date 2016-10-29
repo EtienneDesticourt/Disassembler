@@ -19,4 +19,8 @@ class Instruction(object):
                 self.disassembly += hex(b)
             self.disassembly += " "
         self.position = position
+        self.parts = []
+
+    def add_part(self, part):
+        self.parts.append(part)
 

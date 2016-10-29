@@ -5,3 +5,5 @@ __pycache__
 *.til
 *.nam
 opcodes_parser.py
+packer
+venv
